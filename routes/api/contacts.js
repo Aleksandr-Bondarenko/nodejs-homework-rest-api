@@ -1,13 +1,13 @@
 const express = require("express");
 const createError = require("http-errors");
-const Joi = require("joi");
-const operations = require("../../models/contacts");
+const { Contact } = require("../../models");
+const { joiSchema } = require("../../models/contact");
 
 const router = express.Router();
 
 router.get("/", async (req, res, next) => {
   try {
-    const contacts = await operations.getAll();
+    const contacts = await Contact.find();
     res.json(contacts);
   } catch (err) {
     next(err);
@@ -17,24 +17,21 @@ router.get("/", async (req, res, next) => {
 router.get("/:id", async (req, res, next) => {
   const { id } = req.params;
   try {
-    const contact = await operations.getById(id);
+    const contact = await Contact.findById(id);
     if (!contact) {
       throw new createError.NotFound();
     }
     res.json(contact);
   } catch (err) {
+    if (err.message.includes("Cast to ObjectId failed")) {
+      err.status = 404;
+    }
     next(err);
   }
 });
 
 router.post("/", async (req, res, next) => {
-  const postSchema = Joi.object({
-    name: Joi.string().min(2).required(),
-    email: Joi.string().required(),
-    phone: Joi.string().required(),
-  });
-
-  const { error } = postSchema.validate(req.body);
+  const { error } = joiSchema.validate(req.body);
 
   try {
     if (error) {
@@ -48,9 +45,12 @@ router.post("/", async (req, res, next) => {
       );
     }
 
-    const addedContact = await operations.add(req.body);
+    const addedContact = await Contact.create(req.body);
     res.status(201).json(addedContact);
   } catch (err) {
+    if (err.message.includes("validation failed")) {
+      err.status = 400;
+    }
     next(err);
   }
 });
@@ -58,12 +58,12 @@ router.post("/", async (req, res, next) => {
 router.delete("/:id", async (req, res, next) => {
   const { id } = req.params;
   try {
-    const result = await operations.removeById(id);
+    const result = await Contact.findByIdAndRemove(id);
 
     if (!result) {
       throw new createError.NotFound();
     }
-    res.json(result);
+    res.json({ message: "contact deleted" });
   } catch (err) {
     next(err);
   }
@@ -71,19 +71,39 @@ router.delete("/:id", async (req, res, next) => {
 
 router.put("/:id", async (req, res, next) => {
   const { id } = req.params;
-  const putSchema = Joi.object().min(1);
-  const { error } = putSchema.validate(req.body);
 
   try {
-    if (error) {
-      throw new createError.BadRequest("missing fields");
-    }
-
-    const updatedContact = await operations.updateById(id, req.body);
+    const updatedContact = await Contact.findByIdAndUpdate(id, req.body, {
+      new: true,
+    });
     if (!updatedContact) {
       throw new createError.NotFound();
     }
     res.json(updatedContact);
+  } catch (err) {
+    if (err.message.includes("validation failed")) {
+      err.status = 400;
+    }
+    next(err);
+  }
+});
+
+router.patch("/:id/favorite", async (req, res, next) => {
+  const { id } = req.params;
+  const { favorite } = req.body;
+
+  try {
+    if (favorite === undefined) {
+      throw new createError.BadRequest("missing field favorite");
+    }
+    const updateContact = await Contact.findByIdAndUpdate(
+      id,
+      { favorite },
+      {
+        new: true,
+      }
+    );
+    res.json(updateContact);
   } catch (err) {
     next(err);
   }
