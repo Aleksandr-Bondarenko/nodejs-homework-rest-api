@@ -2,19 +2,34 @@ const express = require("express");
 const createError = require("http-errors");
 const { Contact } = require("../../models");
 const { joiSchema } = require("../../models/contact");
+const { authenticate } = require("../../middlewares");
 
 const router = express.Router();
 
-router.get("/", async (req, res, next) => {
+router.get("/", authenticate, async (req, res, next) => {
+  const { page = 1, limit = 20, favorite } = req.query;
   try {
-    const contacts = await Contact.find();
+    const { _id } = req.user;
+    const skip = (page - 1) * limit;
+    const contacts = await Contact.find(
+      { owner: _id },
+      "-createdAt -updatedAt",
+      { skip, limit: +limit }
+    );
+
+    if (favorite) {
+      const filterContacts = contacts.filter((contact) => contact.favorite);
+      res.json(filterContacts);
+      return;
+    }
+
     res.json(contacts);
   } catch (err) {
     next(err);
   }
 });
 
-router.get("/:id", async (req, res, next) => {
+router.get("/:id", authenticate, async (req, res, next) => {
   const { id } = req.params;
   try {
     const contact = await Contact.findById(id);
@@ -30,10 +45,10 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
-router.post("/", async (req, res, next) => {
-  const { error } = joiSchema.validate(req.body);
-
+router.post("/", authenticate, async (req, res, next) => {
   try {
+    const { error } = joiSchema.validate(req.body);
+
     if (error) {
       const missingFieldName = error.details[0].message.split(" ")[0].split("");
       const missingFieldNameNormalize = missingFieldName
@@ -45,7 +60,9 @@ router.post("/", async (req, res, next) => {
       );
     }
 
-    const addedContact = await Contact.create(req.body);
+    const { _id } = req.user;
+
+    const addedContact = await Contact.create({ ...req.body, owner: _id });
     res.status(201).json(addedContact);
   } catch (err) {
     if (err.message.includes("validation failed")) {
@@ -55,7 +72,7 @@ router.post("/", async (req, res, next) => {
   }
 });
 
-router.delete("/:id", async (req, res, next) => {
+router.delete("/:id", authenticate, async (req, res, next) => {
   const { id } = req.params;
   try {
     const result = await Contact.findByIdAndRemove(id);
@@ -69,7 +86,7 @@ router.delete("/:id", async (req, res, next) => {
   }
 });
 
-router.put("/:id", async (req, res, next) => {
+router.put("/:id", authenticate, async (req, res, next) => {
   const { id } = req.params;
 
   try {
@@ -88,7 +105,7 @@ router.put("/:id", async (req, res, next) => {
   }
 });
 
-router.patch("/:id/favorite", async (req, res, next) => {
+router.patch("/:id/favorite", authenticate, async (req, res, next) => {
   const { id } = req.params;
   const { favorite } = req.body;
 
