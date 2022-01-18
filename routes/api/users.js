@@ -1,7 +1,9 @@
 const express = require("express");
+const fs = require("fs/promises");
+const path = require("path");
 const { BadRequest } = require("http-errors");
 const { User } = require("../../models");
-const { authenticate } = require("../../middlewares");
+const { authenticate, upload } = require("../../middlewares");
 
 const router = express.Router();
 
@@ -47,5 +49,32 @@ router.patch("/", authenticate, async (req, res, next) => {
     next(error);
   }
 });
+
+router.patch(
+  "/avatars",
+  authenticate,
+  upload.single("avatar"),
+  async (req, res, next) => {
+    try {
+      const { _id } = req.user;
+      const avatarDir = path.join(__dirname, "../../", "public/avatars");
+      const { path: tempUpload, filename } = req.file;
+      const [extension] = filename.split(".").reverse();
+      const newFileName = `${_id}.${extension}`;
+      const fileUpload = path.join(avatarDir, newFileName);
+
+      await fs.rename(tempUpload, fileUpload);
+
+      const avatarURL = path.join("avatars", newFileName);
+
+      await User.findByIdAndUpdate(_id, { avatarURL });
+      res.json({
+        avatarURL,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 module.exports = router;
