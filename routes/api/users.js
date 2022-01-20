@@ -2,6 +2,7 @@ const express = require("express");
 const fs = require("fs/promises");
 const path = require("path");
 const { BadRequest } = require("http-errors");
+const Jimp = require("jimp");
 const { User } = require("../../models");
 const { authenticate, upload } = require("../../middlewares");
 
@@ -59,11 +60,21 @@ router.patch(
       const { _id } = req.user;
       const avatarDir = path.join(__dirname, "../../", "public/avatars");
       const { path: tempUpload, filename } = req.file;
+
       const [extension] = filename.split(".").reverse();
       const newFileName = `${_id}.${extension}`;
+
       const fileUpload = path.join(avatarDir, newFileName);
 
       await fs.rename(tempUpload, fileUpload);
+
+      Jimp.read(fileUpload)
+        .then((file) => {
+          return file.contain(250, 250).write(fileUpload);
+        })
+        .catch((err) => {
+          console.error(err.message);
+        });
 
       const avatarURL = path.join("avatars", newFileName);
 
