@@ -1,10 +1,17 @@
 const express = require("express");
 const fs = require("fs/promises");
 const path = require("path");
-const { BadRequest } = require("http-errors");
+const { BadRequest, NotFound } = require("http-errors");
 const Jimp = require("jimp");
 const { User } = require("../../models");
 const { authenticate, upload } = require("../../middlewares");
+const { sendEmail } = require("../../helpers");
+require("dotenv").config();
+
+const { SITE_NAME, NODE_ENV } = process.env;
+
+const BASE_URL =
+  NODE_ENV === "development" ? `http://localhost:3000` : SITE_NAME;
 
 const router = express.Router();
 
@@ -87,5 +94,59 @@ router.patch(
     }
   }
 );
+
+router.get("/verify/:verificationToken", async (req, res, next) => {
+  try {
+    const { verificationToken } = req.params;
+    const user = await User.findOne({ verificationToken });
+
+    if (!user) {
+      throw new NotFound("User not found");
+    }
+
+    res.json({
+      message: "Verification successful",
+    });
+
+    await User.findByIdAndUpdate(user._id, {
+      verificationToken: null,
+      verify: true,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/verify", async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      throw new BadRequest("missing required field email");
+    }
+    const user = await User.findOne({ email });
+    if (!user) {
+      throw new NotFound("User not found");
+    }
+    if (user.verify) {
+      throw new BadRequest("Verification has already been passed");
+    }
+
+    const { verificationToken } = user;
+
+    const data = {
+      to: email,
+      subject: "Email confirmation",
+      html: `<a target="_blank" href="${BASE_URL}/api/users/verify/${verificationToken}">Confirm your email</a>`,
+    };
+
+    await sendEmail(data);
+
+    res.json({
+      message: "Verification email sent",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = router;

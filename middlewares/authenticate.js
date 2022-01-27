@@ -1,7 +1,7 @@
 const { User } = require("../models");
 const jwt = require("jsonwebtoken");
 const { Unauthorized } = require("http-errors");
-
+require("dotenv").config();
 const { SECRET_KEY } = process.env;
 
 const authenticate = async (req, res, next) => {
@@ -17,7 +17,9 @@ const authenticate = async (req, res, next) => {
     }
 
     jwt.verify(token, SECRET_KEY);
+
     const user = await User.findOne({ token });
+
     if (!user) {
       throw new Unauthorized("Not authorized");
     }
