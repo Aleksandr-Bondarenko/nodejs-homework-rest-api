@@ -4,14 +4,13 @@ const express = require("express");
 const logger = require("morgan");
 const cors = require("cors");
 
-require("dotenv").config();
-
 const contactsRouter = require("./routes/api/contacts");
 const authRouter = require("./routes/api/auth");
 const usersRouter = require("./routes/api/users");
 
 const app = express();
 const formatsLogger = app.get("env") === "development" ? "dev" : "short";
+
 const accessLogStream = fs.createWriteStream(
   path.join(__dirname, "server.log"),
   { flags: "a" }
@@ -38,6 +37,3 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
-
-// Alex-Bond
-// 559ehzy8IqWHjiYs
